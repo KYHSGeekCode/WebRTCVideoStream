@@ -1,6 +1,8 @@
 package com.kyhsgeekcode.screenshare
 
 import android.util.Log
+import kotlinx.serialization.json.buildJsonObject
+import kotlinx.serialization.json.put
 import okhttp3.*
 import org.webrtc.*
 
@@ -10,7 +12,7 @@ import org.webrtc.*
 // https://medium.com/@hyun.sang/webrtc-webrtc%EB%9E%80-43df68cbe511
 // https://engineering.linecorp.com/ko/blog/the-architecture-behind-chatting-on-line-live/
 
-open class DefaultSdpObserver : SdpObserver {
+open class LoggingSdpObserver : SdpObserver {
     override fun onCreateSuccess(sessionDescription: SessionDescription) {
         Log.d("WebRTCUtils", "onCreateSuccess() called")
     }
@@ -44,6 +46,7 @@ class WebRTCCaller(
 
     private val sdpConstraints: MediaConstraints = MediaConstraints()
 
+    // in case of multiple connections
     private val peerMap = mutableMapOf<String, PeerConnection>()
 
     var teacherPeer: PeerConnection? = null
@@ -89,21 +92,19 @@ class WebRTCCaller(
             return
         }
         // 6. set remote description
-        teacherPeer.createAnswer(object : DefaultSdpObserver() {
+        teacherPeer.createAnswer(object : LoggingSdpObserver() {
             override fun onCreateSuccess(sessionDescription: SessionDescription) {
-                teacherPeer.setLocalDescription(DefaultSdpObserver(), sessionDescription)
+
+                teacherPeer.setLocalDescription(LoggingSdpObserver(), sessionDescription)
                 /**
                  * createOffer()한 sdp를 서버로 전송
                  */
                 // really send the sdp to the remote peer
-                websocket.send(
-                    Gson().toJson(
-                        SignalMessage(
-                            name,
-                            "offer",
-                            sessionDescription.description
-                        )
-                    )
+                webSocket.send(
+                    buildJsonObject {
+                        put("type", "answer")
+                        put("sdp", sessionDescription.description)
+                    }.toString()
                 )
             }
         }, sdpConstraints)
@@ -138,7 +139,8 @@ class WebRTCCaller(
     }
 
     override fun onAddStream(p0: MediaStream?) {
-        gotRemoteStream(mediaStream)
+        TODO("Not yet implemented")
+        // gotRemoteStream(mediaStream)
     }
 
     override fun onRemoveStream(p0: MediaStream?) {
@@ -175,7 +177,7 @@ class WebRTCCaller(
         val client = OkHttpClient()
 
         val request: Request = Request.Builder()
-            .url(serverAddress)
+            .url("$serverAddress/$name")
             .build()
 
         websocket = client.newWebSocket(request, this)
@@ -205,26 +207,28 @@ class WebRTCCaller(
          * The return value is a Promise which, when the offer has been created,
          * is resolved with a RTCSessionDescription object containing the newly-created offer.
          */
-        teacherPeer.createOffer(object : DefaultSdpObserver() {
+        teacherPeer.createOffer(object : LoggingSdpObserver() {
             override fun onCreateSuccess(sessionDescription: SessionDescription) {
                 // Set the local description and send the sdp description to the remote peer via websocket.
+                val webSocket = websocket ?: run {
+                    Log.e("WebRTCUtils", "websocket is null")
+                    return
+                }
                 Log.i(
                     "WebRTCUtils",
                     "onCreateSuccess() called with: sessionDescription = [$sessionDescription]"
                 )
-                teacherPeer.setLocalDescription(DefaultSdpObserver(), sessionDescription)
+                teacherPeer.setLocalDescription(LoggingSdpObserver(), sessionDescription)
+
                 /**
                  * createOffer()한 sdp를 서버로 전송
                  */
                 // really send the sdp to the remote peer
-                websocket.send(
-                    Gson().toJson(
-                        SignalMessage(
-                            name,
-                            "offer",
-                            sessionDescription.description
-                        )
-                    )
+                webSocket.send(
+                    buildJsonObject {
+                        put("type", "offer")
+                        put("sdp", sessionDescription.description)
+                    }.toString()
                 )
             }
         }, sdpConstraints)
