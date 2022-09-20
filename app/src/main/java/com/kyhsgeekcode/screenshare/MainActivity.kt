@@ -47,7 +47,7 @@ class MainActivity : ComponentActivity() {
     }
 
     private fun startRTCCall(name: String, signalServerAddress: String) {
-        val webRTCCaller = WebRTCCaller(name, signalServerAddress, iceServers)
+        val webRTCCaller = WebRTCCaller(applicationContext, name, signalServerAddress, iceServers)
         webRTCCaller.call()
     }
 }

@@ -1,5 +1,6 @@
 package com.kyhsgeekcode.screenshare
 
+import android.content.Context
 import android.util.Log
 import kotlinx.serialization.json.buildJsonObject
 import kotlinx.serialization.json.put
@@ -31,14 +32,22 @@ open class LoggingSdpObserver : SdpObserver {
 }
 
 class WebRTCCaller(
+    applicationContext: Context,
     private val name: String,
     private val serverAddress: String,
     private val iceServers: List<PeerConnection.IceServer>
 ) :
     WebSocketListener(),
     PeerConnection.Observer {
-    private var peerConnectionFactory: PeerConnectionFactory =
+    private var peerConnectionFactory: PeerConnectionFactory = run {
+        PeerConnectionFactory.initialize(
+            PeerConnectionFactory.InitializationOptions.builder(applicationContext)
+                .setEnableInternalTracer(true)
+                .createInitializationOptions()
+        )
         PeerConnectionFactory.builder().createPeerConnectionFactory()
+    }
+
 
     var websocket: WebSocket? = null
     private var audioStream: MediaStream
