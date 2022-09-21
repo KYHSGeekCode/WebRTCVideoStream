@@ -39,22 +39,56 @@ class WebRTCCaller(
 ) :
     WebSocketListener(),
     PeerConnection.Observer {
+    protected val rootEglBase = EglBase.create()
     private var peerConnectionFactory: PeerConnectionFactory = run {
         PeerConnectionFactory.initialize(
             PeerConnectionFactory.InitializationOptions.builder(applicationContext)
                 .setEnableInternalTracer(true)
+                .setFieldTrials("WebRTC-H264HighProfile/Enabled/")
                 .createInitializationOptions()
         )
         Logging.enableLogToDebugOutput(Logging.Severity.LS_VERBOSE)
-        PeerConnectionFactory.builder().createPeerConnectionFactory()
+        PeerConnectionFactory.builder()
+            .setOptions(getPeerConnectionOptions())
+            .setVideoEncoderFactory(getVideoEncoderFactory())
+            .createPeerConnectionFactory()
     }
 
+    private fun getPeerConnectionOptions(): PeerConnectionFactory.Options {
+        return PeerConnectionFactory.Options().apply {
+            networkIgnoreMask = 0
+            // disableEncryption = true
+            // disableNetworkMonitor = true
+        }
+    }
+
+    private fun getVideoEncoderFactory(): DefaultVideoEncoderFactory {
+        return DefaultVideoEncoderFactory(
+            rootEglBase.eglBaseContext,
+            false,
+            true
+        )
+    }
+
+    private val localVideoSource by lazy {
+        peerConnectionFactory.createVideoSource(true)
+    }
+
+    private val localVideoTrack by lazy {
+        peerConnectionFactory.createVideoTrack("100", localVideoSource)
+    }
+
+    val localStream: MediaStream by lazy {
+        peerConnectionFactory.createLocalMediaStream("101")
+    }
 
     var websocket: WebSocket? = null
-    private var audioStream: MediaStream
-    private var videoStream: MediaStream
+//    private var audioStream: MediaStream
+//    private var videoStream: MediaStream
 
-    private val sdpConstraints: MediaConstraints = MediaConstraints()
+    private val sdpConstraints: MediaConstraints = MediaConstraints().apply {
+        mandatory.add(MediaConstraints.KeyValuePair("OfferToReceiveVideo", "true"))
+    }
 
     // in case of multiple connections
     private val peerMap = mutableMapOf<String, PeerConnection>()
@@ -62,19 +96,19 @@ class WebRTCCaller(
     var teacherPeer: PeerConnection? = null
 
     init {
-        val audioConstraints = MediaConstraints()
-        val audioSource = peerConnectionFactory.createAudioSource(audioConstraints)
-        val videoSource = peerConnectionFactory.createVideoSource(true)
-        val localAudioTrack = peerConnectionFactory.createAudioTrack("101", audioSource)
-        val localVideoTrack = peerConnectionFactory.createVideoTrack("102", videoSource)
-        localAudioTrack.setEnabled(true)
-        localVideoTrack.setEnabled(true)
-        sdpConstraints.mandatory.add(MediaConstraints.KeyValuePair("offerToReceiveAudio", "true"))
-        sdpConstraints.mandatory.add(MediaConstraints.KeyValuePair("offerToReceiveVideo", "true"))
-        audioStream = peerConnectionFactory.createLocalMediaStream("103")
-        videoStream = peerConnectionFactory.createLocalMediaStream("104")
-        audioStream.addTrack(localAudioTrack)
-        videoStream.addTrack(localVideoTrack)
+//        val audioConstraints = MediaConstraints()
+//        val audioSource = peerConnectionFactory.createAudioSource(audioConstraints)
+//        val videoSource = peerConnectionFactory.createVideoSource(true)
+//        val localAudioTrack = peerConnectionFactory.createAudioTrack("101", audioSource)
+//        val localVideoTrack = peerConnectionFactory.createVideoTrack("102", videoSource)
+//        localAudioTrack.setEnabled(true)
+//        localVideoTrack.setEnabled(true)
+//        sdpConstraints.mandatory.add(MediaConstraints.KeyValuePair("offerToReceiveAudio", "true"))
+//        sdpConstraints.mandatory.add(MediaConstraints.KeyValuePair("offerToReceiveVideo", "true"))
+//        audioStream = peerConnectionFactory.createLocalMediaStream("103")
+//        videoStream = peerConnectionFactory.createLocalMediaStream("104")
+//        audioStream.addTrack(localAudioTrack)
+//        videoStream.addTrack(localVideoTrack)
     }
 
     // websocket
@@ -195,20 +229,25 @@ class WebRTCCaller(
             Log.e("WebRTCCaller", "createPeerConnection failed at createPeerConnection")
             return null
         }
-        audioStream.audioTracks.forEach {
-            newPeer.addTrack(it)
-        }
-        videoStream.videoTracks.forEach {
-            newPeer.addTrack(it)
-        }
+        localStream.addTrack(localVideoTrack)
+//        localStream.audioTracks.forEach {
+//            newPeer.addTrack(it)
+//        }
+//        localStream.videoTracks.forEach {
+//            Log.d("videoTrack kind ", it.kind())
+//            Log.d("videoTrack id", it.id())
+//            Log.d("videoTrack state", it.state().toString())
+//            Log.d("videoTrack enabled", it.enabled().toString())
+//            newPeer.addTrack(it)
+//        }
         // https://niccoloterreri.com/webrtc-with-transceivers
         // copilot assisted
         val transceiver = newPeer.addTransceiver(
             MediaStreamTrack.MediaType.MEDIA_TYPE_VIDEO,
             RtpTransceiver.RtpTransceiverInit(RtpTransceiver.RtpTransceiverDirection.SEND_ONLY)
         )
-        val receiver = transceiver.receiver
-        receiver.track()?.setEnabled(false)
+        val sender = transceiver.sender
+        sender.setTrack(localVideoTrack, true)
         return newPeer
     }
 
