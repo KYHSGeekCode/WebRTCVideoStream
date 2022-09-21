@@ -45,6 +45,7 @@ class WebRTCCaller(
                 .setEnableInternalTracer(true)
                 .createInitializationOptions()
         )
+        Logging.enableLogToDebugOutput(Logging.Severity.LS_VERBOSE)
         PeerConnectionFactory.builder().createPeerConnectionFactory()
     }
 
@@ -120,22 +121,30 @@ class WebRTCCaller(
     }
 
     override fun onOpen(webSocket: WebSocket, response: Response) {
+        Log.d(
+            "WebRTCUtils",
+            "onOpen() called with: webSocket = [$webSocket], response = [$response]"
+        )
         super.onOpen(webSocket, response)
     }
 
     override fun onSignalingChange(p0: PeerConnection.SignalingState?) {
+        Log.d("WebRTCUtils", "onSignalingChange() called with: p0 = [$p0]")
         TODO("Not yet implemented")
     }
 
     override fun onIceConnectionChange(p0: PeerConnection.IceConnectionState?) {
+        Log.d("WebRTCUtils", "onIceConnectionChange() called with: p0 = [$p0]")
         TODO("Not yet implemented")
     }
 
     override fun onIceConnectionReceivingChange(p0: Boolean) {
+        Log.d("WebRTCUtils", "onIceConnectionReceivingChange() called with: p0 = [$p0]")
         TODO("Not yet implemented")
     }
 
     override fun onIceGatheringChange(p0: PeerConnection.IceGatheringState?) {
+        Log.d("WebRTCUtils", "onIceGatheringChange() called with: p0 = [$p0]")
         TODO("Not yet implemented")
     }
 
@@ -161,7 +170,7 @@ class WebRTCCaller(
     }
 
     override fun onRenegotiationNeeded() {
-        TODO("Not yet implemented")
+        Log.e("WebRTCUtils", "onRenegotiationNeeded() called")
     }
 
     override fun onAddTrack(p0: RtpReceiver?, p1: Array<out MediaStream>?) {
@@ -173,7 +182,7 @@ class WebRTCCaller(
             iceServers,
             this,
         ) ?: run {
-            Log.e("WebRTCCaller", "createPeerConnection failed")
+            Log.e("WebRTCCaller", "createPeerConnection failed at createPeerConnection")
             return null
         }
         newPeer.addStream(videoStream)
@@ -182,6 +191,7 @@ class WebRTCCaller(
     }
 
     private fun connectSignalServer() {
+        Log.d("WebRTCUtils", "connectSignalServer() called")
         // 1. connect websocket to singal server
         val client = OkHttpClient()
 
@@ -197,10 +207,11 @@ class WebRTCCaller(
         connectSignalServer()
         // create peer connection and register ice handler and data channel handler
         teacherPeer = createPeerConnection()
+        Log.d("WebRTCUtils", "createPeerConnection called")
         val teacherPeer = teacherPeer
         // 3. set local description  and send offer to remote via server
         if (teacherPeer == null) {
-            Log.e("WebRTCCaller", "createPeerConnection failed")
+            Log.e("WebRTCCaller", "createPeerConnection failed at call")
             return
         }
         /*

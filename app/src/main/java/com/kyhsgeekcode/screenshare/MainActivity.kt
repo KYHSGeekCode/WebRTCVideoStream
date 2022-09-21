@@ -57,9 +57,9 @@ class MainActivity : ComponentActivity() {
 // STUN server list: https://www.voip-info.org/stun/
 // STUN server role: get ip, port of self from outside
 val iceServers = listOf(
-    PeerConnection.IceServer.builder("stun.l.google.com:19302").createIceServer(),
-    PeerConnection.IceServer.builder("stun1.l.google.com:19302").createIceServer(),
-    PeerConnection.IceServer.builder("stun2.l.google.com:19302").createIceServer(),
-    PeerConnection.IceServer.builder("stun3.l.google.com:19302").createIceServer(),
-    PeerConnection.IceServer.builder("stun4.l.google.com:19302").createIceServer(),
+    PeerConnection.IceServer.builder("stun:stun.l.google.com:19302?transport=udp").createIceServer(),
+    PeerConnection.IceServer.builder("stun:stun1.l.google.com:19302?transport=udp").createIceServer(),
+    PeerConnection.IceServer.builder("stun:stun2.l.google.com:19302?transport=udp").createIceServer(),
+    PeerConnection.IceServer.builder("stun:stun3.l.google.com:19302?transport=udp").createIceServer(),
+    PeerConnection.IceServer.builder("stun:stun4.l.google.com:19302?transport=udp").createIceServer(),
 )
