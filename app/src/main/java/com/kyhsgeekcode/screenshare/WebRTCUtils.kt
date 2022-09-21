@@ -104,7 +104,10 @@ class WebRTCCaller(
         // 6. set remote description
         teacherPeer.createAnswer(object : LoggingSdpObserver() {
             override fun onCreateSuccess(sessionDescription: SessionDescription) {
-
+                Log.d(
+                    "WebRTCUtils",
+                    "onCreateSuccess() called with: sessionDescription = [$sessionDescription]"
+                )
                 teacherPeer.setLocalDescription(LoggingSdpObserver(), sessionDescription)
                 /**
                  * createOffer()한 sdp를 서버로 전송
@@ -130,7 +133,6 @@ class WebRTCCaller(
 
     override fun onSignalingChange(p0: PeerConnection.SignalingState?) {
         Log.d("WebRTCUtils", "onSignalingChange() called with: p0 = [$p0]")
-        TODO("Not yet implemented")
     }
 
     override fun onIceConnectionChange(p0: PeerConnection.IceConnectionState?) {
@@ -178,15 +180,35 @@ class WebRTCCaller(
     }
 
     private fun createPeerConnection(): PeerConnection? {
+        val config = PeerConnection.RTCConfiguration(iceServers).apply {
+//            bundlePolicy = PeerConnection.BundlePolicy.MAXCOMPAT
+            sdpSemantics = PeerConnection.SdpSemantics.UNIFIED_PLAN
+            iceTransportsType = PeerConnection.IceTransportsType.ALL
+//            iceCandidatePoolSize = 2
+            continualGatheringPolicy = PeerConnection.ContinualGatheringPolicy.GATHER_CONTINUALLY
+            candidateNetworkPolicy = PeerConnection.CandidateNetworkPolicy.ALL
+        }
         val newPeer = peerConnectionFactory.createPeerConnection(
-            iceServers,
+            config,
             this,
         ) ?: run {
             Log.e("WebRTCCaller", "createPeerConnection failed at createPeerConnection")
             return null
         }
-        newPeer.addStream(videoStream)
-        newPeer.addStream(audioStream)
+        audioStream.audioTracks.forEach {
+            newPeer.addTrack(it)
+        }
+        videoStream.videoTracks.forEach {
+            newPeer.addTrack(it)
+        }
+        // https://niccoloterreri.com/webrtc-with-transceivers
+        // copilot assisted
+        val transceiver = newPeer.addTransceiver(
+            MediaStreamTrack.MediaType.MEDIA_TYPE_VIDEO,
+            RtpTransceiver.RtpTransceiverInit(RtpTransceiver.RtpTransceiverDirection.SEND_ONLY)
+        )
+        val receiver = transceiver.receiver
+        receiver.track()?.setEnabled(false)
         return newPeer
     }
 
@@ -227,6 +249,7 @@ class WebRTCCaller(
          * The return value is a Promise which, when the offer has been created,
          * is resolved with a RTCSessionDescription object containing the newly-created offer.
          */
+        Log.d("WebRTCUtils", "will call createOffer")
         teacherPeer.createOffer(object : LoggingSdpObserver() {
             override fun onCreateSuccess(sessionDescription: SessionDescription) {
                 // Set the local description and send the sdp description to the remote peer via websocket.
@@ -234,22 +257,35 @@ class WebRTCCaller(
                     Log.e("WebRTCUtils", "websocket is null")
                     return
                 }
-                Log.i(
+                Log.d(
                     "WebRTCUtils",
-                    "onCreateSuccess() called with: sessionDescription = [$sessionDescription]"
+                    "onCreateSuccess() called with: sessionDescription = [${sessionDescription.description}, ${sessionDescription.type}]"
                 )
-                teacherPeer.setLocalDescription(LoggingSdpObserver(), sessionDescription)
+                teacherPeer.setLocalDescription(object : LoggingSdpObserver() {
+                    override fun onSetSuccess() {
+                        super.onSetSuccess()
+                        Log.d(
+                            "WebRTCUtils",
+                            "onSetSuccess() called with: p0 = [$sessionDescription]"
+                        )
+                        Log.d("WebRTCUtils", "will send offer to server")
+                        /**
+                         * createOffer()한 sdp를 서버로 전송
+                         */
+                        // really send the sdp to the remote peer
+                        webSocket.send(
+                            buildJsonObject {
+                                put("type", "offer")
+                                put("sdp", sessionDescription.description)
+                            }.toString()
+                        )
+                    }
 
-                /**
-                 * createOffer()한 sdp를 서버로 전송
-                 */
-                // really send the sdp to the remote peer
-                webSocket.send(
-                    buildJsonObject {
-                        put("type", "offer")
-                        put("sdp", sessionDescription.description)
-                    }.toString()
-                )
+                    override fun onSetFailure(p0: String?) {
+                        super.onSetFailure(p0)
+                        Log.e("WebRTCUtils", "onSetFailure() called with: p0 = [$p0]")
+                    }
+                }, sessionDescription)
             }
         }, sdpConstraints)
 

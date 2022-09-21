@@ -1,5 +1,6 @@
 package com.kyhsgeekcode.screenshare
 
+import android.os.Build
 import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
@@ -40,12 +41,29 @@ class MainActivity : ComponentActivity() {
                         }) {
                             Text(text = "Start")
                         }
+                        Button(onClick = {
+                            getPermissions()
+                        }) {
+                            Text("Get permissions")
+                        }
                     }
                 }
             }
         }
     }
 
+
+    private fun getPermissions() {
+        val permissions = arrayOf(
+            android.Manifest.permission.CAMERA,
+            android.Manifest.permission.RECORD_AUDIO,
+            android.Manifest.permission.WRITE_EXTERNAL_STORAGE,
+            android.Manifest.permission.READ_EXTERNAL_STORAGE
+        )
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
+            requestPermissions(permissions, 0)
+        }
+    }
     private fun startRTCCall(name: String, signalServerAddress: String) {
         val webRTCCaller = WebRTCCaller(applicationContext, name, signalServerAddress, iceServers)
         webRTCCaller.call()
